@@ -40,6 +40,13 @@ body.sin-ing .ing,body.sin-trad .trad{display:none}
 #barraAc small{color:var(--sec);font-size:1rem} #barraAc b{color:var(--ac);min-width:2.5em;display:inline-block}
 body.sin-ac .acordes,body.sin-ac #barraAc{display:none!important}
 #vacio{margin:auto;color:var(--sec);font-size:1.3rem;padding:24px;text-align:center}
+#vista{position:relative}
+#flot{position:absolute;right:12px;bottom:14px;z-index:3;width:52px;height:52px;border-radius:50%;font-size:1.4rem;
+  border:1px solid var(--borde);background:var(--panel);color:var(--texto);opacity:.85}
+body.sin-barra #barra{display:none}
+@media (max-width:700px){
+  #barra{flex-wrap:nowrap;overflow-x:auto;padding:6px 8px;gap:6px}
+  #barra button{flex:0 0 auto;padding:8px 12px;min-height:44px;font-size:1rem} #barra .espacio{display:none}}
 #menu{display:none}
 @media (max-width:700px){#lista{position:absolute;inset:0;width:100%;max-width:none;z-index:2}
   body.leyendo #lista{display:none} #menu{display:inline-block}}
@@ -56,7 +63,8 @@ body.sin-ac .acordes,body.sin-ac #barraAc{display:none!important}
 <button id="bauto">▶ Auto</button><button id="vmenos">−</button><span id="vel"></span><button id="vmas">+</button>
 <span class="espacio"></span><button id="besc">Escenario</button><button id="bpant">Pantalla</button></div>
 <div id="barraAc"><small>Ahora</small><b id="acAhora">–</b><small>Siguiente</small><b id="acSig">–</b></div>
-<div id="cancion"><div id="vacio">Elige una canción de la lista</div></div></main>
+<div id="cancion"><div id="vacio">Elige una canción de la lista</div></div>
+<button id="flot" title="Mostrar u ocultar la barra de botones">⚙</button></main>
 <script>
 const $ = id => document.getElementById(id);
 const guardar = (k, v) => { try { localStorage.setItem(k, v); return true } catch (e) { return false } };
@@ -199,6 +207,10 @@ $('bing').onclick = () => interruptor('sin-ing', 'bing', 'sinIng'); $('btrad').o
 $('besc').onclick = () => interruptor('escenario', 'besc', 'esc'); $('bpant').onclick = pantallaEncendida;
 $('menu').onclick = () => document.body.classList.remove('leyendo');
 $('bac').onclick = () => interruptor('sin-ac', 'bac', 'sinAc');
+$('flot').onclick = () => {  // oculta la barra de botones para tener más letra en pantalla
+  guardar('sinBarra', document.body.classList.toggle('sin-barra') ? '1' : '');
+  ajustarRelleno(); actualizarAcorde();
+};
 $('cancion').addEventListener('scroll', actualizarAcorde, {passive: true});
 window.addEventListener('resize', () => { ajustarRelleno(); actualizarAcorde(); });
 
@@ -222,6 +234,7 @@ $('bquitar').onclick = () => {
 ajustarTam(0);
 if (leer('sinIng')) { document.body.classList.add('sin-ing'); $('bing').classList.add('on'); }
 if (leer('sinTrad')) { document.body.classList.add('sin-trad'); $('btrad').classList.add('on'); }
+if (leer('sinBarra')) document.body.classList.add('sin-barra');
 if (leer('sinAc')) { document.body.classList.add('sin-ac'); $('bac').classList.add('on'); }
 if (leer('esc')) { document.body.classList.add('escenario'); $('besc').classList.add('on'); }
 pintarLista();
