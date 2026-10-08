@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b3d91"><link rel="manifest" href="manifest.json">
+<link rel="icon" href="icono-192.png"><title>Cancionero</title>
+<style>
+:root{--fondo:#fff;--texto:#111;--pron:#0b3d91;--sec:#666;--borde:#ccc;--panel:#f2f4f8;--tam:2.1rem}
+body.escenario{--fondo:#000;--texto:#eee;--pron:#ffd54a;--sec:#aaa;--borde:#444;--panel:#111}
+*{box-sizing:border-box} html,body{height:100%;margin:0}
+body{font-family:system-ui,sans-serif;background:var(--fondo);color:var(--texto);display:flex;overflow:hidden}
+#lista{width:320px;max-width:40%;border-right:1px solid var(--borde);background:var(--panel);display:flex;flex-direction:column}
+#lista h1{margin:0;padding:14px 16px;font-size:1.3rem}
+.acciones{display:flex;gap:8px;padding:0 12px 8px}
+.acciones button{flex:1;padding:12px;font-size:1rem;border:1px solid var(--borde);border-radius:8px;background:var(--fondo);color:var(--texto);min-height:48px}
+.acciones button#bquitar{flex:0 0 auto}
+#buscar{margin:0 12px 8px;padding:12px;font-size:1.1rem;border:1px solid var(--borde);border-radius:8px;background:var(--fondo);color:var(--texto)}
+#items{overflow:auto;flex:1}
+#items button{display:block;width:100%;text-align:left;padding:16px;border:0;border-bottom:1px solid var(--borde);
+  background:none;color:var(--texto);font-size:1.15rem;min-height:56px}
+#items button small{display:block;color:var(--sec);font-size:.85rem}
+#items button.activa{background:var(--pron);color:var(--fondo)} #items button.activa small{color:inherit}
+#vista{flex:1;display:flex;flex-direction:column;min-width:0}
+#barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--borde);background:var(--panel)}
+#barra button{padding:12px 16px;font-size:1.1rem;border:1px solid var(--borde);border-radius:8px;background:var(--fondo);color:var(--texto);min-height:48px}
+#barra button.on{background:var(--pron);color:var(--fondo)} #barra .espacio{flex:1}
+#cancion{flex:1;overflow:auto;padding:16px 24px 120px}
+#vel{min-width:3.2em;text-align:center;color:var(--sec)}
+#cancion h2{margin:.2em 0 0;font-size:2rem} .meta{color:var(--sec);font-style:italic;margin:0 0 12px}
+h3{margin:22px 0 4px;color:var(--sec);text-transform:uppercase;font-size:.95rem;letter-spacing:.05em}
+.verso{margin:14px 0} .ing{color:var(--sec);font-size:calc(var(--tam)*.55)}
+.pron{color:var(--pron);font-weight:700;font-size:var(--tam);line-height:1.2}
+.trad{color:var(--sec);font-style:italic;font-size:calc(var(--tam)*.5)}
+body.sin-ing .ing,body.sin-trad .trad{display:none}
+:root{--ac:#b71c1c} body.escenario{--ac:#7dffb0}
+.acordes{color:var(--ac);font-weight:700;font-size:calc(var(--tam)*.75);margin:2px 0}
+.ac{display:inline-block;padding:0 .35em;margin-right:.3em;border-radius:8px;border:2px solid transparent}
+.ac.actual{background:var(--ac);color:var(--fondo)}
+#barraAc{display:none;align-items:baseline;gap:14px;padding:6px 16px;border-bottom:1px solid var(--borde);
+  background:var(--panel);font-size:1.5rem}
+#barraAc small{color:var(--sec);font-size:1rem} #barraAc b{color:var(--ac);min-width:2.5em;display:inline-block}
+body.sin-ac .acordes,body.sin-ac #barraAc{display:none!important}
+#vacio{margin:auto;color:var(--sec);font-size:1.3rem;padding:24px;text-align:center}
+#menu{display:none}
+@media (max-width:700px){#lista{position:absolute;inset:0;width:100%;max-width:none;z-index:2}
+  body.leyendo #lista{display:none} #menu{display:inline-block}}
+</style></head><body>
+<aside id="lista"><h1>🎵 Cancionero</h1>
+<div class="acciones"><button id="bimp">Importar canciones</button><button id="bquitar">Quitar</button></div>
+<input id="archivo" type="file" accept=".json,application/json" hidden>
+<input id="buscar" type="search" placeholder="Buscar canción…"><div id="items"></div></aside>
+<main id="vista">
+<div id="barra">
+<button id="menu">☰</button><button id="ant">◀</button><button id="sig">▶</button>
+<button id="menos">A−</button><button id="mas">A+</button>
+<button id="bing">Inglés</button><button id="btrad">Traducción</button><button id="bac">Acordes</button>
+<button id="bauto">▶ Auto</button><button id="vmenos">−</button><span id="vel"></span><button id="vmas">+</button>
+<span class="espacio"></span><button id="besc">Escenario</button><button id="bpant">Pantalla</button></div>
+<div id="barraAc"><small>Ahora</small><b id="acAhora">–</b><small>Siguiente</small><b id="acSig">–</b></div>
+<div id="cancion"><div id="vacio">Elige una canción de la lista</div></div></main>
+<script>
+const $ = id => document.getElementById(id);
+const guardar = (k, v) => { try { localStorage.setItem(k, v); return true } catch (e) { return false } };
+const leer = (k, d) => { try { return localStorage.getItem(k) ?? d } catch (e) { return d } };
+// La app solo trae las canciones públicas (BASE). El resto se importa desde un canciones.json y
+// queda guardado en este dispositivo.
+const BASE = [{"titulo": "Amazing Grace", "artista": "Tradicional (dominio público)", "tono": "G", "publica": "si", "notas": "Ejemplo de formato. Cada verso son 3 líneas seguidas: inglés / pronunciación / traducción.", "bloques": [["seccion", "Verso 1"], ["acordes", "G C G"], ["verso", ["Amazing grace, how sweet the sound", "Améising gréis, jáu suít de sáund", "Sublime gracia, qué dulce el sonido"]], ["acordes", "G Em D"], ["verso", ["That saved a wretch like me", "Dat séivd a rétch láik mí", "Que salvó a un miserable como yo"]], ["acordes", "G C"], ["verso", ["I once was lost, but now am found", "Ái uáns uás lóst, bat náu am fáund", "Estuve perdido, pero ahora fui hallado"]], ["acordes", "G D G"], ["verso", ["Was blind, but now I see", "Uás bláind, bat náu ái sí", "Estaba ciego, pero ahora veo"]]]}];
+let CANCIONES = [];
+function combinar() {
+  let importadas = [];
+  try { importadas = JSON.parse(leer('biblioteca', '[]')) } catch (e) {}
+  const m = new Map();
+  for (const c of [...BASE, ...importadas]) m.set(c.titulo, c);
+  CANCIONES = [...m.values()];
+}
+combinar();
+let actual = -1, tam = parseFloat(leer('tam', '2.1'));
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function pintarLista() {
+  const q = $('buscar').value.toLowerCase();
+  $('items').innerHTML = CANCIONES.map((c, i) => [c, i]).filter(([c]) =>
+    (c.titulo + ' ' + (c.artista || '')).toLowerCase().includes(q)).map(([c, i]) =>
+    `<button data-i="${i}" class="${i === actual ? 'activa' : ''}">${esc(c.titulo || '?')}<small>${esc(c.artista || '')}${c.tono ? ' · Tono ' + esc(c.tono) : ''}</small></button>`).join('');
+}
+// Los acordes ("|" en el .txt) se pegan al verso que viene después. k numera los acordes de toda la canción.
+function cuerpoHtml(c) {
+  let pend = '', k = 0, salida = '';
+  for (const [t, d] of c.bloques) {
+    if (t === 'seccion') salida += `<h3>${esc(d)}</h3>`;
+    else if (t === 'acordes') pend = d;
+    else {
+      const ac = pend.split(/\s+/).filter(Boolean); pend = '';
+      const fila = ac.length ? `<div class="acordes">${ac.map(a => `<span class="ac">${esc(a)}</span>`).join(' ')}</div>` : '';
+      salida += `<div class="verso"${ac.length ? ` data-ac="${ac.length}" data-p="${k}"` : ''}><div class="ing">${esc(d[0])}</div>${fila}` +
+        `<div class="pron">${esc(d[1])}</div><div class="trad">${esc(d[2])}</div></div>`;
+      k += ac.length;
+    }
+  }
+  return salida;
+}
+// Acorde actual: el que está en la línea de lectura (35% desde arriba). Dentro de un verso con varios
+// acordes se avanza en proporción a lo que la línea de lectura ha recorrido del verso.
+let versosAc = [], listaAc = [], acActual = -1;
+function prepararAcordes() {
+  versosAc = [...document.querySelectorAll('.verso[data-ac]')].map(el => ({el, p: +el.dataset.p, n: +el.dataset.ac}));
+  listaAc = [...document.querySelectorAll('.ac')]; acActual = -1;
+  $('barraAc').style.display = versosAc.length ? 'flex' : 'none';
+  actualizarAcorde();
+}
+function actualizarAcorde() {
+  if (!versosAc.length) return;
+  const caja = $('cancion'), y = caja.getBoundingClientRect().top + caja.clientHeight * 0.35;
+  let m = versosAc[0];
+  for (const v of versosAc) { if (v.el.getBoundingClientRect().top <= y) m = v; else break; }
+  const r = m.el.getBoundingClientRect();
+  const f = Math.min(0.999, Math.max(0, (y - r.top) / Math.max(1, r.height)));
+  const k = m.p + Math.floor(f * m.n);
+  if (k === acActual) return;
+  if (listaAc[acActual]) listaAc[acActual].classList.remove('actual');
+  acActual = k; listaAc[k].classList.add('actual');
+  $('acAhora').textContent = listaAc[k].textContent;
+  $('acSig').textContent = listaAc[k + 1] ? listaAc[k + 1].textContent : '–';
+}
+function abrir(i) {
+  if (i < 0 || i >= CANCIONES.length) return;
+  actual = i; const c = CANCIONES[i];
+  $('cancion').innerHTML = `<h2>${esc(c.titulo || '')}</h2><p class="meta">${esc([c.artista, c.tono && 'Tono: ' + c.tono].filter(Boolean).join(' · '))}</p>` +
+    (c.notas ? `<p class="meta">${esc(c.notas)}</p>` : '') +
+    cuerpoHtml(c);
+  $('cancion').scrollTop = 0; alternarAuto(false); cargarVel(); document.body.classList.add('leyendo');
+  prepararAcordes();
+  guardar('ultima', i); pintarLista();
+}
+function interruptor(clase, boton, clave) {
+  const on = document.body.classList.toggle(clase); $(boton).classList.toggle('on', on); guardar(clave, on ? '1' : '');
+}
+function ajustarTam(d) {
+  tam = Math.min(5, Math.max(1.2, tam + d)); document.documentElement.style.setProperty('--tam', tam + 'rem'); guardar('tam', tam);
+  if (typeof actualizarAcorde === 'function') actualizarAcorde();
+}
+
+let bloqueo = null;
+async function pantallaEncendida() {
+  try {
+    if (bloqueo) { await bloqueo.release(); bloqueo = null; $('bpant').classList.remove('on'); return; }
+    bloqueo = await navigator.wakeLock.request('screen'); $('bpant').classList.add('on');
+    bloqueo.addEventListener('release', () => { bloqueo = null; $('bpant').classList.remove('on'); });
+  } catch (e) { alert('Este navegador no permite mantener la pantalla encendida.'); }
+}
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && $('bpant').classList.contains('on') && !bloqueo)
+    try { bloqueo = await navigator.wakeLock.request('screen'); } catch (e) {} });
+
+// Avance automático: velocidad en píxeles por segundo, con fracciones acumuladas.
+let vel = parseInt(leer('vel', '30')), auto = false, ultimoT = 0, acum = 0, reloj = null;
+function mostrarVel() { $('vel').textContent = vel + ' px/s'; }
+// La velocidad se guarda por canción; 'vel' sirve de punto de partida para las canciones nuevas.
+const claveVel = () => 'vel:' + (CANCIONES[actual]?.titulo || actual);
+function cargarVel() {
+  const v = parseInt(leer(claveVel(), leer('vel', '30')));
+  vel = Math.min(200, Math.max(5, isNaN(v) ? 30 : v)); mostrarVel();
+}
+function ajustarVel(d) {
+  vel = Math.min(200, Math.max(5, vel + d));
+  guardar('vel', vel); if (actual >= 0) guardar(claveVel(), vel); mostrarVel();
+}
+function paso() {
+  const el = $('cancion'), t = performance.now(); acum += (t - ultimoT) / 1000 * vel; ultimoT = t;
+  if (acum >= 1) { el.scrollTop += Math.floor(acum); acum -= Math.floor(acum); }
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) alternarAuto(false);
+}
+function alternarAuto(on = !auto) {
+  auto = on; $('bauto').classList.toggle('on', on); $('bauto').textContent = on ? '⏸ Pausa' : '▶ Auto';
+  clearInterval(reloj);
+  if (on) { ultimoT = performance.now(); acum = 0; reloj = setInterval(paso, 33); }
+}
+$('bauto').onclick = () => alternarAuto();
+$('vmenos').onclick = () => ajustarVel(-5); $('vmas').onclick = () => ajustarVel(5);
+// Si tocas o arrastras la letra con el dedo, el avance se pausa para que puedas moverte a mano.
+$('cancion').addEventListener('touchstart', () => auto && alternarAuto(false), {passive: true});
+$('cancion').addEventListener('wheel', () => auto && alternarAuto(false), {passive: true});
+mostrarVel();
+
+$('items').onclick = e => { const b = e.target.closest('button'); if (b) abrir(+b.dataset.i); };
+$('buscar').oninput = pintarLista;
+$('ant').onclick = () => abrir(actual - 1); $('sig').onclick = () => abrir(actual + 1);
+$('menos').onclick = () => ajustarTam(-.2); $('mas').onclick = () => ajustarTam(.2);
+$('bing').onclick = () => interruptor('sin-ing', 'bing', 'sinIng'); $('btrad').onclick = () => interruptor('sin-trad', 'btrad', 'sinTrad');
+$('besc').onclick = () => interruptor('escenario', 'besc', 'esc'); $('bpant').onclick = pantallaEncendida;
+$('menu').onclick = () => document.body.classList.remove('leyendo');
+$('bac').onclick = () => interruptor('sin-ac', 'bac', 'sinAc');
+$('cancion').addEventListener('scroll', actualizarAcorde, {passive: true});
+window.addEventListener('resize', actualizarAcorde);
+
+$('bimp').onclick = () => $('archivo').click();
+$('archivo').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const datos = JSON.parse(await f.text());
+    if (!Array.isArray(datos) || !datos.length || !datos.every(c => c && c.titulo && Array.isArray(c.bloques))) throw new Error('formato');
+    if (!guardar('biblioteca', JSON.stringify(datos))) return alert('No hay espacio para guardar las canciones en este navegador.');
+    combinar(); actual = -1; pintarLista();
+    alert('Se importaron ' + datos.length + ' canciones.');
+  } catch (err) { alert('Ese archivo no es un canciones.json válido.'); }
+};
+$('bquitar').onclick = () => {
+  if (!confirm('¿Quitar las canciones importadas de este dispositivo?')) return;
+  try { localStorage.removeItem('biblioteca') } catch (e) {}
+  combinar(); actual = -1; $('cancion').innerHTML = '<div id="vacio">Elige una canción de la lista</div>'; pintarLista();
+};
+
+ajustarTam(0);
+if (leer('sinIng')) { document.body.classList.add('sin-ing'); $('bing').classList.add('on'); }
+if (leer('sinTrad')) { document.body.classList.add('sin-trad'); $('btrad').classList.add('on'); }
+if (leer('sinAc')) { document.body.classList.add('sin-ac'); $('bac').classList.add('on'); }
+if (leer('esc')) { document.body.classList.add('escenario'); $('besc').classList.add('on'); }
+pintarLista();
+const u = parseInt(leer('ultima', '-1')); if (u >= 0 && u < CANCIONES.length) abrir(u); else if (window.innerWidth > 700 && CANCIONES.length) abrir(0);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script></body></html>
