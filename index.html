@@ -84,7 +84,7 @@ function pintarLista() {
 }
 // Los acordes ("|" en el .txt) se pegan al verso que viene después. k numera los acordes de toda la canción.
 function cuerpoHtml(c) {
-  let pend = '', k = 0, salida = '';
+  let pend = '', k = 0, salida = '<div id="relleno"></div>';
   for (const [t, d] of c.bloques) {
     if (t === 'seccion') salida += `<h3>${esc(d)}</h3>`;
     else if (t === 'acordes') pend = d;
@@ -105,7 +105,17 @@ function prepararAcordes() {
   versosAc = [...document.querySelectorAll('.verso[data-ac]')].map(el => ({el, p: +el.dataset.p, n: +el.dataset.ac}));
   listaAc = [...document.querySelectorAll('.ac')]; acActual = -1;
   $('barraAc').style.display = versosAc.length ? 'flex' : 'none';
-  actualizarAcorde();
+  ajustarRelleno(); actualizarAcorde();
+}
+// Deja el primer verso con acordes justo en la línea de lectura al abrir la canción (así el resaltado
+// parte en la primera frase y hay tiempo de aviso), y espacio al final para que el último verso la alcance.
+function ajustarRelleno() {
+  const caja = $('cancion'), r = $('relleno'); if (!r) return;
+  r.style.height = '0px';
+  if (!versosAc.length) { caja.style.paddingBottom = ''; return; }
+  caja.style.paddingBottom = Math.round(caja.clientHeight * 0.65) + 'px';
+  const arriba = versosAc[0].el.getBoundingClientRect().top - caja.getBoundingClientRect().top + caja.scrollTop;
+  r.style.height = Math.max(0, Math.round(caja.clientHeight * 0.35 - arriba + 10)) + 'px';
 }
 function actualizarAcorde() {
   if (!versosAc.length) return;
@@ -136,7 +146,7 @@ function interruptor(clase, boton, clave) {
 }
 function ajustarTam(d) {
   tam = Math.min(5, Math.max(1.2, tam + d)); document.documentElement.style.setProperty('--tam', tam + 'rem'); guardar('tam', tam);
-  if (typeof actualizarAcorde === 'function') actualizarAcorde();
+  if (typeof actualizarAcorde === 'function') { ajustarRelleno(); actualizarAcorde(); }
 }
 
 let bloqueo = null;
@@ -190,7 +200,7 @@ $('besc').onclick = () => interruptor('escenario', 'besc', 'esc'); $('bpant').on
 $('menu').onclick = () => document.body.classList.remove('leyendo');
 $('bac').onclick = () => interruptor('sin-ac', 'bac', 'sinAc');
 $('cancion').addEventListener('scroll', actualizarAcorde, {passive: true});
-window.addEventListener('resize', actualizarAcorde);
+window.addEventListener('resize', () => { ajustarRelleno(); actualizarAcorde(); });
 
 $('bimp').onclick = () => $('archivo').click();
 $('archivo').onchange = async e => {
